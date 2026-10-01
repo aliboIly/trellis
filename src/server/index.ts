@@ -207,9 +207,11 @@ export function boot(list: ReadonlyArray<Service>): BootReport {
 	if (ok) {
 		const slowest = [...split]
 			.sort((a, b) => a[1] > b[1])
-			.filter((_, index) => index < SLOWEST_SHOWN);
+			.filter((_, index) => index < SLOWEST_SHOWN)
+			.map(([name, ms]) => `${name}=${ms}`)
+			.join(",");
 		log.always(
-			`initialized: ${ordered.size()} services ok in ${totalMs}ms, slowest ${describeSplit(slowest)}`,
+			`initialized: ${ordered.size()} services ok in ${totalMs}ms, slowest ${slowest}`,
 		);
 	} else {
 		const skippedText = skipped.isEmpty() ? "" : `; skipped: ${skipped.join(", ")}`;
