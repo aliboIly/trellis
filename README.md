@@ -197,6 +197,7 @@ player outside a handler can use the same handling:
 ```ts
 Server.guard("purchase:vip", player, () => grantVip(player));
 const code = Server.record({ side: "server", site: "save", message, stack });
+Server.showCode(otherPlayer, code, "save"); // the same line for another player it hit
 Server.onError((entry) => Analytics.record(entry)); // records made before this are kept for it
 Client.onErrorLine((code, site) => Toasts.show(errorLine(code, site)));
 ```

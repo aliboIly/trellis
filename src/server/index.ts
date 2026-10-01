@@ -120,6 +120,14 @@ export function record(source: ErrorRecord): string {
 	return Errors.record(source);
 }
 
+/**
+ * Shows a player the line for an error's code, the way a handler's throw does. For an error the
+ * game recorded itself that hit more than one player, like both sides of a failed trade.
+ */
+export function showCode(player: Player, code: string, site: string): void {
+	Wire.sendCode(player, code, site);
+}
+
 export function boot(list: ReadonlyArray<Service>): BootReport {
 	assert(!booted, "trellis: the server booted twice");
 	booted = true;

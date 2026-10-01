@@ -297,6 +297,18 @@ export const suite = new Suite("wire")
 		const grant = recordAt("purchase:vip", "server");
 		assertEqual(lastLine(), `purchase ${grant.code}`, "the client shows the purchase line");
 	})
+	.test("a code the game recorded itself can be shown to a player", () => {
+		const code = Server.record({
+			side: "server",
+			site: "purchase:trade",
+			message: "the swap did not finish",
+			stack: "",
+			player: harness.me,
+		});
+		Server.showCode(harness.me, code, "purchase:trade");
+		harness.settle();
+		assertEqual(lastLine(), `purchase ${code}`, "the client shows the line");
+	})
 	.test("uncaught server errors are recorded once each", () => {
 		harness.crash("lost the floor");
 		harness.crash("lost the floor");

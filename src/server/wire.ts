@@ -248,7 +248,14 @@ function remote<C extends "RemoteEvent" | "RemoteFunction">(
 
 let codeRemote: RemoteEvent | undefined;
 
-// Records a throw on a player's behalf. The client gets the code and the site, never the record.
+/** Sends a player an error's code and site, so their client shows the line. Never the record. */
+export function sendCode(player: Player, code: string, site: string): void {
+	if (codeRemote !== undefined && roster.isReady(player)) {
+		codeRemote.FireClient(player, { code, site: siteOf(site) });
+	}
+}
+
+// Records a throw on a player's behalf, and shows them its code.
 function fail(site: string, player: Player, err: unknown): void {
 	const code = Errors.record({
 		side: "server",
@@ -258,9 +265,7 @@ function fail(site: string, player: Player, err: unknown): void {
 		player,
 		script: "server",
 	});
-	if (codeRemote !== undefined && roster.isReady(player)) {
-		codeRemote.FireClient(player, { code, site: siteOf(site) });
-	}
+	sendCode(player, code, site);
 }
 
 /** Runs `run` for one player and records it if it throws. Returns whether `run` finished. */
