@@ -1,0 +1,20 @@
+{
+  "name": "trellis-spec",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "rbxts_include": {
+        "$path": "../build/include",
+        "node_modules": {
+          "$className": "Folder",
+          "@rbxts": {
+            "$path": "../node_modules/@rbxts"
+          }
+        }
+      },
+      "build": {
+        "$path": "../build/out"
+      }
+    }
+  }
+}

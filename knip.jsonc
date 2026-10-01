@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/tests/main.ts"],
+  "project": ["src/**/*.ts"],
+  "ignoreExportsUsedInFile": true,
+  // Pulled in through typeRoots and the compiler, never imported.
+  "ignoreDependencies": ["@rbxts/compiler-types", "@rbxts/types"],
+  // Rokit tools, not npm packages.
+  "ignoreBinaries": ["rojo", "lune"]
+}

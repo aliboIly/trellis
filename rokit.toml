@@ -1,0 +1,6 @@
+# Tools for the specs, managed by Rokit. Run `rokit install` after cloning.
+# Rojo builds the spec place and Lune runs it (scripts/run-specs.luau).
+
+[tools]
+rojo = "rojo-rbx/rojo@7.7.0"
+lune = "lune-org/lune@0.10.4"

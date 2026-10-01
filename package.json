@@ -1,0 +1,39 @@
+{
+  "name": "@dbc/trellis",
+  "version": "0.1.0",
+  "description": "A framework for roblox-ts games: services, controllers, and typed contracts between the server and its clients.",
+  "main": "out/init.luau",
+  "types": "out/index.d.ts",
+  "files": [
+    "out",
+    "!**/*.tsbuildinfo"
+  ],
+  "private": true,
+  "scripts": {
+    "build": "rbxtsc --type package",
+    "watch": "rbxtsc --type package -w",
+    "lint": "eslint src --max-warnings 0",
+    "format": "prettier --write src",
+    "check:format": "prettier --check src",
+    "check:deadcode": "knip",
+    "build:specs": "rbxtsc -p tsconfig.spec.json --type game --rojo scripts/spec.project.json -i build/include && rojo build scripts/spec.project.json --output build/spec.rbxl",
+    "check:specs": "npm run build:specs && lune run scripts/run-specs.luau build/spec.rbxl",
+    "check": "npm run build && npm run lint && npm run check:format && npm run check:deadcode && npm run check:specs"
+  },
+  "author": "Ali",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@rbxts/compiler-types": "^3.0.0-types.0",
+    "@rbxts/types": "^1.0.929",
+    "eslint": "^10.11.0",
+    "eslint-plugin-roblox-ts": "^1.4.1",
+    "knip": "^6.39.0",
+    "prettier": "^3.9.9",
+    "roblox-ts": "^3.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0"
+  },
+  "dependencies": {
+    "@rbxts/services": "^1.6.0"
+  }
+}
