@@ -109,9 +109,9 @@ type InboundKeys<M extends Members> = {
 export type Handlers<M extends Members> = { readonly [K in InboundKeys<M>]: HandlerOf<M[K]> };
 
 export interface ServerEvent<P> {
-	/** Sends to one player. Dropped if their client hasn't said hello yet. */
+	/** Sends to one player. If their client is still loading, it waits until it has said hello. */
 	readonly fire: (player: Player, payload: P) => void;
-	/** Sends to every player whose client has said hello. */
+	/** Sends to every player. Clients still loading get it after their hello, in order. */
 	readonly fireAll: (payload: P) => void;
 }
 

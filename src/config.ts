@@ -11,6 +11,8 @@ export interface Settings {
 	readonly sites?: ReadonlyArray<string>;
 	/** Extra `key=value` text for the server's error log line, like the round phase. */
 	readonly recordContext?: () => string;
+	/** Extra `key=value` text for a client's error report, like the screen that was open. */
+	readonly reportContext?: () => string;
 }
 
 const CORE_SITES: ReadonlyArray<string> = ["boot", "net", "uncaught"];

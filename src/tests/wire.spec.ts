@@ -40,6 +40,7 @@ const Stock = contract("stock", {
 const records = new Array<ErrorEntry>();
 const denied = new Array<string>();
 const accepted = new Array<string>();
+const acceptedFrom = new Array<string>();
 const joins = new Array<string>();
 const leaves = new Array<string>();
 let pokes = 0;
@@ -51,8 +52,9 @@ const analytics = Server.service({
 		Server.onError((entry) => {
 			records.push(entry);
 		});
-		Server.onAccepted((name) => {
+		Server.onAccepted((name, player) => {
 			accepted.push(name);
+			acceptedFrom.push(player.Name);
 		});
 		Server.onDenied((player, detail) => {
 			denied.push(`${player.Name} ${detail}`);
@@ -172,6 +174,7 @@ export const suite = new Suite("wire")
 		assertEqual(report.skipped.join(","), "afterFaulty", "skipped");
 		harness.settle();
 		const sent = recordAt("boot:faulty", "client");
+		assertEqual(sent.doing, "last=boot screen=shop", "the client's context rides the report");
 		Client.onErrorLine((code, site) => {
 			lines.push(`${site} ${code}`);
 		});
@@ -194,6 +197,7 @@ export const suite = new Suite("wire")
 		assertEqual(apple?.total, 4, "apple total");
 		assertEqual(remote.buy({ item: "pear", count: 1 })?.ok, false, "pear");
 		assertTrue(accepted.includes("shop.buy"), "counted as accepted");
+		assertEqual(acceptedFrom[accepted.indexOf("shop.buy")], "me", "with the player who called");
 	})
 	.test("payloads that fail the check never reach the handler", () => {
 		const before = accepted.size();
@@ -247,6 +251,7 @@ export const suite = new Suite("wire")
 		harness.settle();
 		assertEqual(joins.join(","), "me,guest", "joined");
 		shop.client.sold.fireAll("apple");
+		shop.client.sold.fire(guest, "welcome");
 		harness.settle();
 		assertEqual(sentTo(guest, "shop", "sold").size(), 0, "no event before hello");
 		assertEqual(sentTo(guest, "shop", "coins").size(), 0, "no value before hello");
@@ -255,6 +260,17 @@ export const suite = new Suite("wire")
 		harness.settle();
 		assertEqual(sentTo(guest, "shop", "coins").join(","), "10", "value after hello");
 		assertEqual(sentTo(guest, "shop", "open").join(","), "true", "shared value after hello");
+		assertEqual(
+			sentTo(guest, "shop", "sold").join(","),
+			"apple,welcome",
+			"both events, in the order they were sent",
+		);
+		const order = harness
+			.sent()
+			.filter((each) => each.to === "guest")
+			.map((each) => each.member)
+			.join(",");
+		assertEqual(order, "coins,open,sold,sold", "the held events come after the values");
 	})
 	.test("leaves run in reverse order and the player is forgotten", () => {
 		const guest = harness.join("leaver");
@@ -263,6 +279,14 @@ export const suite = new Suite("wire")
 		harness.settle();
 		assertEqual(leaves.join(","), "shop leaver,analytics leaver", "order");
 		assertNothing(shop.client.coins.get(guest), "value dropped");
+	})
+	.test("an event held for a player who leaves is never sent", () => {
+		const ghost = harness.join("ghost");
+		harness.settle();
+		shop.client.sold.fire(ghost, "lost");
+		harness.leave(ghost);
+		harness.settle();
+		assertEqual(sentTo(ghost, "shop", "sold").size(), 0, "nothing sent");
 	})
 	.test("guard records with the game's own site", () => {
 		const ok = Server.guard("purchase:vip", harness.me, () => {

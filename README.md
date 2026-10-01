@@ -128,7 +128,7 @@ member changes the wire.
 
 1. If the service isn't running (still booting, or it failed), the call is dropped.
 2. If the payload fails the member's check, the call is dropped.
-3. The call is counted (`Server.onAccepted`).
+3. The call is counted (`Server.onAccepted`, with the member's name and the player).
 4. If the player is over the member's budget, the call is dropped (`Server.onDenied`).
 5. The handler runs. If it throws, the error is recorded and the player gets a code. A request
    that threw answers `undefined`.
@@ -143,8 +143,10 @@ times it was set. A client gets nothing until it says hello, which happens at th
 `Client.boot`, once every controller is listening. The server answers the hello with every
 property value the player should have.
 
-An event is a moment. It only goes to clients that have said hello, and is dropped for the rest.
-If a client that joins late needs to see something, make it a property.
+An event is a moment. Events sent while a player's client is still loading wait, and go out right
+after their property values in the order they were sent (up to 64 per player), the way the engine
+queues events for a client that isn't listening yet. So a welcome sent when a player joins isn't
+lost, and a loading client ends up where a client that was listening all along would be.
 
 ## Players
 
@@ -208,6 +210,7 @@ configure({
 	errorLine: (code, site) => `${site} failed (${code}). Send a screenshot to support.`,
 	sites: ["purchase"],     // extra error sites
 	recordContext: () => `phase=${Round.phase()}`, // added to the server's error log line
+	reportContext: () => `screen=${Screens.open()}`, // added to a client's error report
 });
 ```
 

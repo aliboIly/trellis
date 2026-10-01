@@ -8,7 +8,7 @@
 
 import { ScriptContext } from "@rbxts/services";
 
-import { isSite } from "../config";
+import { isSite, settings } from "../config";
 import { LIMITS, clientLine, newErrorCode, plainAscii, siteKey, trimTo } from "../errors";
 import type { ErrorReportPayload } from "../errors";
 import { scoped } from "../log";
@@ -36,6 +36,13 @@ export function setSender(sender: (payload: ErrorReportPayload) => void): void {
 /** Notes the last thing the client asked the server for. It goes in the next report. */
 export function note(doing: string): void {
 	last = doing;
+}
+
+function readContext(): string {
+	const read = settings().reportContext;
+	if (read === undefined) return "";
+	const [ok, text] = pcall(read);
+	return ok && typeIs(text, "string") ? ` ${plainAscii(text)}` : "";
 }
 
 export function addShow(show: Show): void {
@@ -70,7 +77,7 @@ export function report(site: string, detail: string, err: unknown, stack?: strin
 		site: trimTo(key, LIMITS.siteMax),
 		message: trimTo(message, LIMITS.messageMax),
 		stack: trimTo(plainAscii(stack ?? debug.traceback(undefined, 2)), LIMITS.stackMax),
-		doing: trimTo(`last=${last}`, LIMITS.doingMax),
+		doing: trimTo(`last=${last}${readContext()}`, LIMITS.doingMax),
 	};
 	pcall(send, payload);
 	return code;

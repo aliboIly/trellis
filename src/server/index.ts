@@ -97,8 +97,8 @@ export function onError(sink: (entry: ErrorEntry) => void): void {
 	Errors.addSink(sink);
 }
 
-/** Called with `contract.member` for every call that passed its check. */
-export function onAccepted(hook: (name: string) => void): void {
+/** Called with `contract.member` and the player for every call that passed its check. */
+export function onAccepted(hook: (name: string, player: Player) => void): void {
 	Wire.onAccepted(hook);
 }
 
@@ -127,7 +127,12 @@ export function boot(list: ReadonlyArray<Service>): BootReport {
 	const began = os.clock();
 	Errors.install();
 	Lifecycle.init();
-	Wire.setRoster({ isReady: Lifecycle.isReady, ready: Lifecycle.readyPlayers });
+	Wire.setRoster({
+		isReady: Lifecycle.isReady,
+		isWaiting: Lifecycle.isWaiting,
+		ready: Lifecycle.readyPlayers,
+		waiting: Lifecycle.waitingPlayers,
+	});
 	Wire.bindSession(Lifecycle.hello);
 
 	const [sorted, ordered] = pcall(order, list);

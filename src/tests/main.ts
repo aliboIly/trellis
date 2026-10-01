@@ -16,6 +16,7 @@ export function run(): number {
 		errorLine: (code, site) => `${site} broke (${code})`,
 		sites: ["purchase"],
 		recordContext: () => "phase=spec",
+		reportContext: () => "screen=shop",
 	});
 	// The wire suite boots trellis, which locks the settings, so it goes last.
 	const suites: ReadonlyArray<Suite> = [

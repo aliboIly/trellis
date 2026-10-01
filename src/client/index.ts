@@ -228,9 +228,9 @@ export function onErrorLine(show: (code: string, site: string) => void): void {
 	Reporter.addShow(show);
 }
 
-/** Reports an error the game caught itself. Returns its code. */
-export function report(site: string, detail: string, err: unknown): string {
-	return Reporter.report(site, detail, err);
+/** Reports an error the game caught itself. Returns its code. Pass the stack if you have one. */
+export function report(site: string, detail: string, err: unknown, stack?: string): string {
+	return Reporter.report(site, detail, err, stack);
 }
 
 /** Runs `run` and reports it if it throws. Returns whether `run` finished. */

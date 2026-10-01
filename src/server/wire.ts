@@ -7,8 +7,10 @@
 // throws, the error is recorded and the player gets its code.
 //
 // Property values live on the server. A player gets every value when their client says hello,
-// then each change, at most once per frame. Events only go to clients that have said hello. An
-// event fired before that is dropped, since a missed moment isn't state to catch up on.
+// then each change, at most once per frame. Events sent while a player's client is still loading
+// wait, and go out right after their values in the order they were sent, the way the engine
+// queues events for a client that isn't listening yet. Nothing sent on join is lost, and the
+// client ends up where a client that was listening all along would be.
 
 import { ReplicatedStorage } from "@rbxts/services";
 
@@ -37,13 +39,31 @@ const ROOT = "trellis";
 /** Who can be sent to. Set by the player lifecycle at boot. */
 export interface Roster {
 	readonly isReady: (player: Player) => boolean;
+	/** Joined, but their client hasn't said hello yet. */
+	readonly isWaiting: (player: Player) => boolean;
 	readonly ready: () => ReadonlySet<Player>;
+	readonly waiting: () => ReadonlySet<Player>;
 }
 
 const NOBODY: ReadonlySet<Player> = new Set();
 
-let roster: Roster = { isReady: () => false, ready: () => NOBODY };
-let acceptedHook: (name: string) => void = () => {};
+// Events held for one player until their hello. Past this many, later ones are dropped.
+const HELD_MAX = 64;
+
+interface Held {
+	readonly remote: RemoteEvent;
+	readonly payload: unknown;
+}
+
+const held = new Map<Player, Array<Held>>();
+
+let roster: Roster = {
+	isReady: () => false,
+	isWaiting: () => false,
+	ready: () => NOBODY,
+	waiting: () => NOBODY,
+};
+let acceptedHook: (name: string, player: Player) => void = () => {};
 let deniedHook: (player: Player, detail: string) => void = (player, detail) => {
 	log.debug(`denied ${player.Name}: ${detail}`);
 };
@@ -52,7 +72,7 @@ export function setRoster(value: Roster): void {
 	roster = value;
 }
 
-export function onAccepted(hook: (name: string) => void): void {
+export function onAccepted(hook: (name: string, player: Player) => void): void {
 	acceptedHook = hook;
 }
 
@@ -105,6 +125,16 @@ function flushShared(slot: SharedSlot): void {
 	for (const player of roster.ready()) remote.FireClient(player, slot.value);
 }
 
+function hold(player: Player, remote: RemoteEvent, payload: unknown, name: string): void {
+	let list = held.get(player);
+	if (list === undefined) {
+		list = [];
+		held.set(player, list);
+	}
+	if (list.size() < HELD_MAX) list.push({ remote, payload });
+	else log.debug(`dropped ${name} for ${player.Name}: ${HELD_MAX} events already waiting`);
+}
+
 function makeEvent(slot: EventSlot, name: string): ServerEvent<unknown> {
 	return {
 		fire: (player, payload) => {
@@ -113,6 +143,7 @@ function makeEvent(slot: EventSlot, name: string): ServerEvent<unknown> {
 				return;
 			}
 			if (roster.isReady(player)) slot.remote.FireClient(player, payload);
+			else if (roster.isWaiting(player)) hold(player, slot.remote, payload, name);
 		},
 		fireAll: (payload) => {
 			const remote = slot.remote;
@@ -121,6 +152,7 @@ function makeEvent(slot: EventSlot, name: string): ServerEvent<unknown> {
 				return;
 			}
 			for (const player of roster.ready()) remote.FireClient(player, payload);
+			for (const player of roster.waiting()) hold(player, remote, payload, name);
 		},
 	};
 }
@@ -247,7 +279,7 @@ function admit<P>(
 	payload: unknown,
 ): payload is P {
 	if (!running.has(service) || !spec.check(payload)) return false;
-	acceptedHook(name);
+	acceptedHook(name, player);
 	if (window.allow(player, os.clock())) return true;
 	deniedHook(player, `${spec.budget} calls in ${RATE_WINDOW_SECONDS}s on ${name}`);
 	return false;
@@ -326,7 +358,7 @@ export function isRunning(service: string): boolean {
 	return running.has(service);
 }
 
-/** Sends a player every property value they should have. The answer to their hello. */
+/** Sends a player every property value, then the events held for them. The answer to a hello. */
 export function snapshot(player: Player): void {
 	for (const slot of propertySlots) {
 		if (slot.remote === undefined) continue;
@@ -336,6 +368,10 @@ export function snapshot(player: Player): void {
 			slot.remote.FireClient(player, slot.value);
 		}
 	}
+	const waiting = held.get(player);
+	if (waiting === undefined) return;
+	held.delete(player);
+	for (const entry of waiting) entry.remote.FireClient(player, entry.payload);
 }
 
 /** Drops everything kept for a player who left. */
@@ -346,4 +382,5 @@ export function forget(player: Player): void {
 		slot.pending.delete(player);
 	}
 	for (const window of windows) window.forget(player);
+	held.delete(player);
 }

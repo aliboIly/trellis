@@ -23,6 +23,8 @@ const leftSubs = new Array<Subscription>();
 const announced = new Set<Player>();
 const helloWaiting = new Set<Player>();
 const ready = new Set<Player>();
+// Announced, but their client hasn't said hello yet.
+const waiting = new Set<Player>();
 let accepting = false;
 
 function run(sub: Subscription, moment: string, player: Player): void {
@@ -33,6 +35,7 @@ function run(sub: Subscription, moment: string, player: Player): void {
 }
 
 function markReady(player: Player): void {
+	waiting.delete(player);
 	ready.add(player);
 	Wire.snapshot(player);
 }
@@ -40,6 +43,7 @@ function markReady(player: Player): void {
 function announce(player: Player): void {
 	if (announced.has(player)) return;
 	announced.add(player);
+	waiting.add(player);
 	for (const sub of joinedSubs) run(sub, "joined", player);
 	if (helloWaiting.delete(player)) markReady(player);
 }
@@ -50,6 +54,7 @@ function leave(player: Player): void {
 		for (let i = leftSubs.size() - 1; i >= 0; i--) run(leftSubs[i], "left", player);
 	}
 	announced.delete(player);
+	waiting.delete(player);
 	ready.delete(player);
 	Wire.forget(player);
 	Errors.forget(player);
@@ -76,6 +81,14 @@ export function onLeft(service: string, handler: PlayerHandler): void {
 
 export function isReady(player: Player): boolean {
 	return ready.has(player);
+}
+
+export function isWaiting(player: Player): boolean {
+	return waiting.has(player);
+}
+
+export function waitingPlayers(): ReadonlySet<Player> {
+	return waiting;
 }
 
 export function readyPlayers(): ReadonlySet<Player> {
