@@ -2,9 +2,10 @@
 //
 // Each contract gets a folder under `ReplicatedStorage.trellis`, with a RemoteEvent for each
 // command, event and property, and a RemoteFunction for each request. Every client call goes
-// through the same steps: the service must be running, the payload must pass its check, the call
-// is counted, the member's window must allow it, and then the handler runs. If the handler
-// throws, the error is recorded and the player gets its code.
+// through the same steps: every service must have heard the player joined (a call that comes
+// sooner waits), the service must be running, the payload must pass its check, the call is
+// counted, the member's window must allow it, and then the handler runs. If the handler throws,
+// the error is recorded and the player gets its code.
 //
 // Property values live on the server. A player gets every value when their client says hello,
 // then each change, at most once per frame. Events sent while a player's client is still loading
@@ -36,8 +37,10 @@ const log = scoped("Wire");
 
 const ROOT = "trellis";
 
-/** Who can be sent to. Set by the player lifecycle at boot. */
+/** Who can be sent to and heard from. Set by the player lifecycle at boot. */
 export interface Roster {
+	/** Every service's join handler has run for them. */
+	readonly hasJoined: (player: Player) => boolean;
 	readonly isReady: (player: Player) => boolean;
 	readonly hasLeft: (player: Player) => boolean;
 	readonly ready: () => ReadonlySet<Player>;
@@ -57,7 +60,15 @@ interface Held {
 
 const held = new Map<Player, Array<Held>>();
 
+// Calls one player made before every service heard they joined. Past this many, later ones are
+// dropped.
+const EARLY_MAX = 32;
+
+// The threads of those calls, each waiting to run in the order it came.
+const early = new Map<Player, Array<thread>>();
+
 let roster: Roster = {
+	hasJoined: () => false,
 	isReady: () => false,
 	hasLeft: () => false,
 	ready: () => NOBODY,
@@ -279,6 +290,35 @@ export function guarded(site: string, player: Player, run: () => void): boolean 
 	return ok;
 }
 
+// A client can call while the server is still booting, before its player's join is announced.
+// The engine would queue that call for a remote nobody listens to yet. trellis listens from the
+// start, so it parks the call here instead, until every service has heard the player joined.
+// Returns false if the player left first, or already has too many calls waiting.
+function awaitJoin(player: Player, name: string): boolean {
+	if (roster.hasJoined(player)) return true;
+	if (roster.hasLeft(player)) return false;
+	let list = early.get(player);
+	if (list === undefined) {
+		list = [];
+		early.set(player, list);
+	}
+	if (list.size() >= EARLY_MAX) {
+		log.debug(`dropped ${name} from ${player.Name}: ${EARLY_MAX} calls already waiting`);
+		return false;
+	}
+	list.push(coroutine.running());
+	const [joined] = coroutine.yield();
+	return joined === true;
+}
+
+/** Runs the calls a player made before their join was announced, in the order they came. */
+export function release(player: Player): void {
+	const list = early.get(player);
+	if (list === undefined) return;
+	early.delete(player);
+	for (const parked of list) task.spawn(parked, true);
+}
+
 function admit<P>(
 	service: string,
 	name: string,
@@ -315,12 +355,14 @@ export function bind(
 			// The handler goes straight to xpcall, so a call builds no closure.
 			if (spec.kind === "command") {
 				remote("RemoteEvent", parent, member).OnServerEvent.Connect((player, payload) => {
+					if (!awaitJoin(player, name)) return;
 					if (!admit(service, name, spec, window, player, payload)) return;
 					const [ok, err] = xpcall(handler, capture, player, payload);
 					if (!ok) fail(site, player, err);
 				});
 			} else {
 				remote("RemoteFunction", parent, member).OnServerInvoke = (player, payload) => {
+					if (!awaitJoin(player, name)) return undefined;
 					if (!admit(service, name, spec, window, player, payload)) return undefined;
 					const [ok, answer] = xpcall(handler, capture, player, payload);
 					if (ok) return answer;
@@ -383,7 +425,7 @@ export function snapshot(player: Player): void {
 	for (const entry of waiting) entry.remote.FireClient(player, entry.payload);
 }
 
-/** Drops everything kept for a player who left. */
+/** Drops everything kept for a player who left. Their waiting calls end without running. */
 export function forget(player: Player): void {
 	for (const slot of propertySlots) {
 		if (slot.kind !== "playerProperty") continue;
@@ -392,4 +434,8 @@ export function forget(player: Player): void {
 	}
 	for (const window of windows) window.forget(player);
 	held.delete(player);
+	const list = early.get(player);
+	if (list === undefined) return;
+	early.delete(player);
+	for (const parked of list) task.spawn(parked, false);
 }

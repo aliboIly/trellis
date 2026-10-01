@@ -142,12 +142,29 @@ roblox.implementMethod("RemoteEvent", "FireClient", function(remote, player, pay
 		end)
 	end
 end)
-roblox.implementMethod("RemoteFunction", "InvokeServer", function(remote, payload)
+-- Like the engine: the server's callback runs on its own thread, so it can yield, and the caller
+-- waits for its answer. An error in the callback is raised in the caller too.
+local function invokeAs(remote, player, payload, label)
 	local invoke = stateOf(remote).invoke
 	if invoke == nil then
-		error("the remote has no OnServerInvoke")
+		error(label .. " has no OnServerInvoke")
 	end
-	return copy(invoke(harness.me, copy(payload)))
+	local done, ok, answer = false, false, nil
+	task.spawn(function()
+		ok, answer = pcall(invoke, player, copy(payload))
+		done = true
+	end)
+	while not done do
+		task.wait()
+	end
+	if not ok then
+		error(answer, 0)
+	end
+	return copy(answer)
+end
+
+roblox.implementMethod("RemoteFunction", "InvokeServer", function(remote, payload)
+	return invokeAs(remote, harness.me, payload, remote:GetFullName())
 end)
 
 -- Lune's instances have no WaitForChild. A wait with no timeout gives up after a few seconds
@@ -208,11 +225,7 @@ function harness.fire(player, contract, member, payload)
 end
 
 function harness.invoke(player, contract, member, payload)
-	local invoke = stateOf(remoteOf(contract, member)).invoke
-	if invoke == nil then
-		error(contract .. "." .. member .. " has no OnServerInvoke")
-	end
-	return copy(invoke(player, copy(payload)))
+	return invokeAs(remoteOf(contract, member), player, payload, contract .. "." .. member)
 end
 
 function harness.crash(message)

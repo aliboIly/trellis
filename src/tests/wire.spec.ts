@@ -27,6 +27,7 @@ const Shop = contract("shop", {
 	buy: request<Order, Receipt>(isOrder, 30),
 	poke: command<undefined>(isNothing, 2),
 	jam: command<undefined>(isNothing, 5),
+	knock: command<undefined>(isNothing, 50),
 	coins: playerProperty<number>(),
 	open: sharedProperty<boolean>(),
 	sold: event<string>(),
@@ -45,6 +46,9 @@ const joins = new Array<string>();
 const leaves = new Array<string>();
 let pokes = 0;
 let stockCalls = 0;
+// Each knock the server ran, by who knocked, or "unannounced" if it ran before their join was.
+const knocks = new Array<string>();
+let earlyReceipt: Receipt | undefined;
 
 const analytics = Server.service({
 	name: "analytics",
@@ -77,6 +81,9 @@ const shop = Server.service({
 		jam: () => {
 			error("the till is stuck");
 		},
+		knock: (player) => {
+			knocks.push(joins.includes(player.Name) ? player.Name : "unannounced");
+		},
 	},
 	init: () => {
 		Server.onJoined((player) => {
@@ -91,6 +98,17 @@ const shop = Server.service({
 		shop.client.open.set(true);
 		// Sent while the server boots, before trellis has announced the player who is already in.
 		shop.client.sold.fire(harness.me, "early");
+		// And calls from that player, which land while the boot is still going: a request, then
+		// more knocks than are let wait. Plus a knock from a player who leaves before it's done.
+		task.spawn(() => {
+			const order = { item: "apple", count: 1 };
+			earlyReceipt = harness.invoke(harness.me, "shop", "buy", order) as Receipt | undefined;
+		});
+		for (let i = 0; i < 40; i++) harness.fire(harness.me, "shop", "knock", undefined);
+		const passerby = harness.join("passerby");
+		harness.fire(passerby, "shop", "knock", undefined);
+		harness.settle();
+		harness.leave(passerby);
 	},
 });
 
@@ -168,6 +186,15 @@ export const suite = new Suite("wire")
 	})
 	.test("a player who was in before the boot is announced once", () => {
 		assertEqual(joins.join(","), "me", "joins");
+	})
+	.test("calls made while the server boots wait for the announce", () => {
+		harness.settle();
+		assertEqual(earlyReceipt?.total, 2, "the request is answered");
+		assertEqual(knocks.size(), 31, "the request and 31 knocks waited, the rest were dropped");
+		assertTrue(
+			knocks.every((name) => name === "me"),
+			"each ran after the join handlers, and the leaver's never ran",
+		);
 	})
 	.test("the client boots, and a failed controller skips its dependents", () => {
 		const report = Client.boot([shopView, faulty, afterFaulty]);

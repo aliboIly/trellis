@@ -1,9 +1,10 @@
 // Player joins, leaves and hellos. Services subscribe here instead of connecting to Players.
 //
 // Joins are announced only after boot, so a player who joined while services were still starting
-// is announced to all of them. A client's hello is answered with every property value; a hello
-// that arrives before its player's join is announced waits for it. Leave handlers run in reverse
-// subscription order, so whatever subscribed first (usually analytics) hears the leave last.
+// is announced to all of them. Once every join handler has run, the calls the player made before
+// that run in the order they came, and then a waiting hello is answered with every property value.
+// Leave handlers run in reverse subscription order, so whatever subscribed first (usually
+// analytics) hears the leave last.
 
 import { Players } from "@rbxts/services";
 
@@ -21,6 +22,8 @@ interface Subscription {
 const joinedSubs = new Array<Subscription>();
 const leftSubs = new Array<Subscription>();
 const announced = new Set<Player>();
+// Every join handler has run for them.
+const joined = new Set<Player>();
 const helloWaiting = new Set<Player>();
 const ready = new Set<Player>();
 // Announced, but their client hasn't said hello yet.
@@ -46,7 +49,15 @@ function announce(player: Player): void {
 	if (announced.has(player)) return;
 	announced.add(player);
 	waiting.add(player);
-	for (const sub of joinedSubs) run(sub, "joined", player);
+	for (const sub of joinedSubs) {
+		// A join handler can yield, and the player can leave while it does. Their leave handlers
+		// have run by then, so the rest must not set anything up for them.
+		if (gone.has(player)) return;
+		run(sub, "joined", player);
+	}
+	if (gone.has(player)) return;
+	joined.add(player);
+	Wire.release(player);
 	if (helloWaiting.delete(player)) markReady(player);
 }
 
@@ -56,6 +67,7 @@ function leave(player: Player): void {
 		for (let i = leftSubs.size() - 1; i >= 0; i--) run(leftSubs[i], "left", player);
 	}
 	announced.delete(player);
+	joined.delete(player);
 	waiting.delete(player);
 	ready.delete(player);
 	Wire.forget(player);
@@ -64,7 +76,8 @@ function leave(player: Player): void {
 }
 
 export function hello(player: Player): void {
-	if (!announced.has(player)) {
+	if (gone.has(player)) return;
+	if (!joined.has(player)) {
 		helloWaiting.add(player);
 		return;
 	}
@@ -80,6 +93,10 @@ export function onJoined(service: string, handler: PlayerHandler): void {
 
 export function onLeft(service: string, handler: PlayerHandler): void {
 	leftSubs.push({ service, handler });
+}
+
+export function hasJoined(player: Player): boolean {
+	return joined.has(player);
 }
 
 export function isReady(player: Player): boolean {

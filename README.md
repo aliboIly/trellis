@@ -126,11 +126,14 @@ member changes the wire.
 
 ## What happens to a client call
 
-1. If the service isn't running (still booting, or it failed), the call is dropped.
-2. If the payload fails the member's check, the call is dropped.
-3. The call is counted (`Server.onAccepted`, with the member's name and the player).
-4. If the player is over the member's budget, the call is dropped (`Server.onDenied`).
-5. The handler runs. If it throws, the error is recorded and the player gets a code. A request
+1. If the server hasn't announced the player's join yet (it is still booting, say), the call
+   waits until every service's `onJoined` has run for them, then goes on in the order it came.
+   Up to 32 calls wait per player; past that, and for a player who leaves first, they're dropped.
+2. If the service isn't running (it failed, or something it depends on did), the call is dropped.
+3. If the payload fails the member's check, the call is dropped.
+4. The call is counted (`Server.onAccepted`, with the member's name and the player).
+5. If the player is over the member's budget, the call is dropped (`Server.onDenied`).
+6. The handler runs. If it throws, the error is recorded and the player gets a code. A request
    that threw answers `undefined`.
 
 Handlers should still treat everything in the payload as a claim. Check prices, ids and
@@ -153,7 +156,7 @@ lost, and a loading client ends up where a client that was listening all along w
 On the server, services don't connect to `Players` themselves:
 
 - `Server.onJoined(fn)` runs for every player once boot is done, starting with the players who
-  were already in.
+  were already in. No handler hears from a player before every `onJoined` has run for them.
 - `Server.onLeft(fn)` handlers run in reverse order, so a service that subscribed first (like
   analytics) hears a leave last.
 - Both can only be called from a service's `init` or `start`, and a handler only runs while its

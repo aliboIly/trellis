@@ -136,6 +136,7 @@ export function boot(list: ReadonlyArray<Service>): BootReport {
 	Errors.install();
 	Lifecycle.init();
 	Wire.setRoster({
+		hasJoined: Lifecycle.hasJoined,
 		isReady: Lifecycle.isReady,
 		hasLeft: Lifecycle.hasLeft,
 		ready: Lifecycle.readyPlayers,
