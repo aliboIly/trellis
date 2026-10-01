@@ -25,6 +25,8 @@ const helloWaiting = new Set<Player>();
 const ready = new Set<Player>();
 // Announced, but their client hasn't said hello yet.
 const waiting = new Set<Player>();
+// Players who have left. Weak, so a Player is forgotten here once nothing else holds it.
+const gone = new WeakSet<Player>();
 let accepting = false;
 
 function run(sub: Subscription, moment: string, player: Player): void {
@@ -58,6 +60,7 @@ function leave(player: Player): void {
 	ready.delete(player);
 	Wire.forget(player);
 	Errors.forget(player);
+	gone.add(player);
 }
 
 export function hello(player: Player): void {
@@ -83,8 +86,8 @@ export function isReady(player: Player): boolean {
 	return ready.has(player);
 }
 
-export function isWaiting(player: Player): boolean {
-	return waiting.has(player);
+export function hasLeft(player: Player): boolean {
+	return gone.has(player);
 }
 
 export function waitingPlayers(): ReadonlySet<Player> {

@@ -89,6 +89,8 @@ const shop = Server.service({
 	},
 	start: () => {
 		shop.client.open.set(true);
+		// Sent while the server boots, before trellis has announced the player who is already in.
+		shop.client.sold.fire(harness.me, "early");
 	},
 });
 
@@ -189,6 +191,11 @@ export const suite = new Suite("wire")
 		assertEqual(remote.coins.get(), 10, "coins");
 		assertEqual(remote.open.get(), true, "open");
 		assertEqual(seenCoins.join(","), "10", "observed once");
+		assertEqual(
+			seenSold.join(","),
+			"early",
+			"an event sent during the boot waits for the hello",
+		);
 	})
 	.test("requests get answers", () => {
 		const remote = Client.use(Shop);
@@ -255,7 +262,7 @@ export const suite = new Suite("wire")
 		harness.settle();
 		assertEqual(sentTo(guest, "shop", "sold").size(), 0, "no event before hello");
 		assertEqual(sentTo(guest, "shop", "coins").size(), 0, "no value before hello");
-		assertEqual(seenSold.join(","), "apple", "me got the event");
+		assertEqual(seenSold.join(","), "early,apple", "me got the event");
 		harness.fire(guest, "session", "hello", true);
 		harness.settle();
 		assertEqual(sentTo(guest, "shop", "coins").join(","), "10", "value after hello");
@@ -279,6 +286,8 @@ export const suite = new Suite("wire")
 		harness.settle();
 		assertEqual(leaves.join(","), "shop leaver,analytics leaver", "order");
 		assertNothing(shop.client.coins.get(guest), "value dropped");
+		shop.client.coins.set(guest, 99);
+		assertNothing(shop.client.coins.get(guest), "a set after the leave is ignored");
 	})
 	.test("an event held for a player who leaves is never sent", () => {
 		const ghost = harness.join("ghost");

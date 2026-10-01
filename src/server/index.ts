@@ -137,7 +137,7 @@ export function boot(list: ReadonlyArray<Service>): BootReport {
 	Lifecycle.init();
 	Wire.setRoster({
 		isReady: Lifecycle.isReady,
-		isWaiting: Lifecycle.isWaiting,
+		hasLeft: Lifecycle.hasLeft,
 		ready: Lifecycle.readyPlayers,
 		waiting: Lifecycle.waitingPlayers,
 	});

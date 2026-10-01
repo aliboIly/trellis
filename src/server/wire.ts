@@ -39,9 +39,9 @@ const ROOT = "trellis";
 /** Who can be sent to. Set by the player lifecycle at boot. */
 export interface Roster {
 	readonly isReady: (player: Player) => boolean;
-	/** Joined, but their client hasn't said hello yet. */
-	readonly isWaiting: (player: Player) => boolean;
+	readonly hasLeft: (player: Player) => boolean;
 	readonly ready: () => ReadonlySet<Player>;
+	/** Announced, but their client hasn't said hello yet. */
 	readonly waiting: () => ReadonlySet<Player>;
 }
 
@@ -59,7 +59,7 @@ const held = new Map<Player, Array<Held>>();
 
 let roster: Roster = {
 	isReady: () => false,
-	isWaiting: () => false,
+	hasLeft: () => false,
 	ready: () => NOBODY,
 	waiting: () => NOBODY,
 };
@@ -142,8 +142,10 @@ function makeEvent(slot: EventSlot, name: string): ServerEvent<unknown> {
 				log.warn(`${name} was fired before boot`);
 				return;
 			}
+			// A player who isn't ready may not even be announced yet: the engine doesn't say whose
+			// join handler runs first, and a player can be in the server while it boots.
 			if (roster.isReady(player)) slot.remote.FireClient(player, payload);
-			else if (roster.isWaiting(player)) hold(player, slot.remote, payload, name);
+			else if (!roster.hasLeft(player)) hold(player, slot.remote, payload, name);
 		},
 		fireAll: (payload) => {
 			const remote = slot.remote;
@@ -160,6 +162,8 @@ function makeEvent(slot: EventSlot, name: string): ServerEvent<unknown> {
 function makePlayerProperty(slot: PlayerSlot): ServerPlayerProperty<unknown> {
 	return {
 		set: (player, value) => {
+			// A set after the leave would keep the value forever.
+			if (roster.hasLeft(player)) return;
 			slot.values.set(player, value);
 			if (slot.pending.has(player) || !roster.isReady(player)) return;
 			slot.pending.add(player);
