@@ -1,0 +1,49 @@
+# The package compiles, lint and format hold, knip finds no dead code, and the specs pass
+# headless under Lune, where a server and a client boot in one process and talk through fake
+# remotes. Runs on every pull request into main and every push to it.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # --ignore-scripts skips the prepare build, so a compile error fails the Build step below
+      # and not the install.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run check:format
+
+      - name: Dead-code check
+        run: npm run check:deadcode
+
+      # Rojo and Lune come from rokit.toml.
+      - name: Install Rojo and Lune (Rokit)
+        uses: CompeyDev/setup-rokit@v0.1.2
+
+      - name: Specs (headless)
+        run: npm run check:specs

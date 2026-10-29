@@ -11,11 +11,12 @@ npm run check    # build, lint, format, dead code, specs
 
 ## Setup
 
-In a game in this repo:
+trellis isn't published to npm. Install it from GitHub at a release tag, and npm compiles it as
+it installs (its `prepare` script runs roblox-ts):
 
 ```jsonc
 // package.json
-"dependencies": { "@dbc/trellis": "file:../trellis" }
+"dependencies": { "@dbc/trellis": "github:aliboIly/trellis#v0.1.0" }
 
 // tsconfig.json
 "typeRoots": ["node_modules/@rbxts", "node_modules/@dbc"]
@@ -32,7 +33,10 @@ In a game in this repo:
 }
 ```
 
-Build trellis once (`npm install && npm run build` in this folder) before building the game.
+To work on trellis and a game at the same time, point the game at a clone instead
+(`"@dbc/trellis": "file:../trellis"`) and run `npm install` in the clone, which builds `out/`.
+Rebuild the clone after each change (`npm run build`, or `npm run watch`), and point the game
+back at a tag before you ship it.
 
 ## A small example
 
@@ -228,6 +232,20 @@ Call `configure` on both sides before `boot`. It can't be called after.
 
 ## Development
 
-`npm run check` runs everything CI runs. The specs live in `src/tests`. They are compiled into a
-place with Rojo and run under Lune (`scripts/run-specs.luau`), where a server and a client boot
-in the same process and talk through fake remotes. Tools are pinned in `rokit.toml`.
+```
+rokit install    # Rojo and Lune, pinned in rokit.toml
+npm install      # also builds out/
+npm run check    # everything CI runs
+```
+
+The specs live in `src/tests`. They are compiled into a place with Rojo and run under Lune
+(`scripts/run-specs.luau`), where a server and a client boot in the same process and talk
+through fake remotes.
+
+A fix comes with a spec that fails without it. The public surface is what `src/index.ts`
+exports, so a pull request that changes it says what a game has to change to upgrade. Releases
+are tags (`v0.1.0`); a tag never moves once it's pushed, because games pin it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

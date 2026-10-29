@@ -2,6 +2,10 @@
   "name": "@dbc/trellis",
   "version": "0.1.0",
   "description": "A framework for roblox-ts games: services, controllers, and typed contracts between the server and its clients.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aliboIly/trellis.git"
+  },
   "main": "out/init.luau",
   "types": "out/index.d.ts",
   "files": [
@@ -11,6 +15,7 @@
   "private": true,
   "scripts": {
     "build": "rbxtsc --type package",
+    "prepare": "npm run build",
     "watch": "rbxtsc --type package -w",
     "lint": "eslint src --max-warnings 0",
     "format": "prettier --write src",
@@ -21,7 +26,7 @@
     "check": "npm run build && npm run lint && npm run check:format && npm run check:deadcode && npm run check:specs"
   },
   "author": "Ali",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "devDependencies": {
     "@rbxts/compiler-types": "^3.0.0-types.0",
     "@rbxts/types": "^1.0.929",
